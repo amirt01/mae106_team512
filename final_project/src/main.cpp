@@ -21,6 +21,16 @@ int pistonMode = 1;
 int DesiredSteeringAngle;
 int TimeBetweenFires;
 int PullUpSwitch;
+int sensorValue;
+int error;
+bool going = false;
+
+// steering variables
+int currentHeading, desiredHeading, newHeading;
+int Kp = 3;
+
+// control variables
+int ButtonPin = 4;  //TODO: MUST BE A PWM PIN
 
 enum State{
   Callibration,
@@ -34,7 +44,6 @@ unsigned long previous_time = 0;
 // Time Variables
 unsigned long lastmilli = 0; // time since solenoid opened
 const long interval = 1000; // interval to turn on and off solenoid
-
 
 void setup() {
   servo.attach(servoPin);
@@ -76,7 +85,22 @@ void loop() {
     case PositionAssignment:
       break;
     case Running:
-      // Running robot
+      // skip everything if we are still in standby
+      if (!going) {
+        if (analogRead(ButtonPin)) going = true;
+        else break;
+      } else break;
+
+      /* POWER */
+
+
+      /* STEERING */
+      compass.read();
+      currentHeading = compass.heading();
+      newHeading = Kp * (currentHeading - desiredHeading);
+      servoDirection = map(newHeading, compass.m_min.x, compass.m_max.x, 0.0, 25.0);  // TODO: CHANGE TO OTHER DIMENSION
+      analogWrite(servoPin, servoDirection);
+
       break;
     case Finish:
       // Finish run
