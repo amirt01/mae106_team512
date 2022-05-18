@@ -8,31 +8,24 @@ LSM303::vector<int16_t> running_min = {32767, 32767, 32767}, running_max = {-327
 
 Servo servo;
 
-int servoPin; //define servo pin attached
-int solenoid; //pin solenoid is attahced to
-int switchPin; //pin that the switch is connected to
-int reedSwitch; // variable storing position of reed switch
-int servoDirection; // direction servo is pointing
-int robotPosition; // stores position of the robot itself
-int solenoidState = LOW;
-int potentOne;
-int potentTwo;
-int pistonMode = 1;
-int DesiredSteeringAngle;
-int TimeBetweenFires;
-int PullUpSwitch;
-int sensorValue;
-int error;
-bool going = false;
 
 // power variables
-int pistonPosition = 1;
+int solenoidPin = 2; //pin solenoid is attahced to
+int reedSwitchPin = 10;
+bool pistonPosition = true;  // true is top, false is bottom
+int solenoidState = LOW;
+int reedSwitchState; // variable storing position of reed switch
+
 // steering variables
+int servoPin; //define servo pin attached
+int servoDirection; // direction servo is pointing
 int currentHeading, desiredHeading, newHeading;
 int Kp = 3;
 
 // control variables
-int ButtonPin = 4;  //TODO: MUST BE A PWM PIN
+int buttonPin = 4;
+bool going = false;
+int buttonState = 0;
 
 enum State{
   Callibration,
@@ -50,9 +43,9 @@ const long interval = 1000; // interval to turn on and off solenoid
 
 void setup() {
   servo.attach(servoPin);
-  pinMode(solenoid, OUTPUT);
-  pinMode(switchPin, INPUT_PULLUP);
-  pinMode(reedSwitch, INPUT_PULLUP);
+  pinMode(solenoidPin, OUTPUT);
+  pinMode(buttonPin, INPUT);
+  pinMode(reedSwitchPin, INPUT_PULLUP);
   Serial.begin(9600);
   Wire.begin();
   compass.init();
@@ -60,6 +53,8 @@ void setup() {
   compass.writeReg(0x24, 0x74);
 
   previous_time = millis();
+
+  state = State::Running;  // CHANGE FOR FINAL
 }
 
 void loop() {
@@ -89,40 +84,37 @@ void loop() {
       break;
     case Running:
       // skip everything if we are still in standby
-      if (!going) {
-        if (analogRead(ButtonPin)) going = true;
-        else break;
-      } else break;
+      if (digitalRead(buttonPin)) {
+        going = !going;
+        delay(15);
+      }
+      if (!going) break;
 
       /* STEERING */
-      compass.read();
-      currentHeading = compass.heading();
-      newHeading = Kp * (currentHeading - desiredHeading);
-      servoDirection = map(newHeading, compass.m_min.x, compass.m_max.x, 0.0, 25.0);  // TODO: CHANGE TO OTHER DIMENSION
-      analogWrite(servoPin, servoDirection);
+      // compass.read();
+      // currentHeading = compass.heading();
+      // newHeading = Kp * (currentHeading - desiredHeading);
+      // servoDirection = map(newHeading, compass.m_min.x, compass.m_max.x, 0.0, 25.0);  // TODO: CHANGE TO OTHER DIMENSION
+      // analogWrite(servoPin, servoDirection);
 
       /* POWER */
-
+      // Serial.println(reedSwitchState);
       // TODO: change to use interupts instead
-      if (digitalRead(reedSwitch)) { // if the magnet is near the reedswitch
-      if (digitalRead(reedSwitch)) { // if the magnet is near the reedswitch
-        pistonPosition++;
-        if (pistonPosition > 4) pistonPosition = 1;
+      Serial.println(digitalRead(reedSwitchPin));
+      bool reedSwitchState = digitalRead(reedSwitchPin);
+      if (!reedSwitchState) { // if the magnet is near the reedswitch
+        digitalWrite(solenoidPin, !digitalRead(solenoidPin));
+        while(digitalRead(reedSwitchPin) == reedSwitchState);
       }
-
-      if (pistonPosition < 3)
-          solenoidState = HIGH;
-      else
-          solenoidState = LOW;
-      digitalWrite(solenoid, solenoidState);
 
       /* REED SWITCH */
 
-      reedSwitch = digitalRead(switchPin);
+      // reedSwitchState = digitalRead(reedSwitchPin);
 
       break;
     case Finish:
       // Finish run
       break;
   }
+  delay(100);
 }
