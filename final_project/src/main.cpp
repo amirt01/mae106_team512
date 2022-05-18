@@ -18,10 +18,10 @@ int solenoidState = LOW;
 bool reedSwitchState = 0;  // initially the piston is at the top
 
 // steering variables
-int servoPin = 2; //define servo pin attached
+int servoPin = 5; //define servo pin attached
 int servoDirection; // direction servo is pointing
-int currentHeading, desiredHeading, newHeading;
-int Kp = 3;
+float currentHeading, desiredHeading, newHeading;
+int Kp = 1;
 int upperBound, lowerBound;  // upper and lower bound for steering
 
 // control variables
@@ -76,7 +76,7 @@ void loop() {
       running_max.y = max(running_max.y, compass.m.y);
       running_max.z = max(running_max.z, compass.m.z);
 
-      snprintf(report, sizeof(report), "min: {%+6d, %+6d, %+6d}    max: {%+6d, %+6d, %+6d}",
+      sprintf(report, "min: {%+6d, %+6d, %+6d}    max: {%+6d, %+6d, %+6d}",
         running_min.x, running_min.y, running_min.z,
         running_max.x, running_max.y, running_max.z);
       Serial.println(report);
@@ -94,25 +94,29 @@ void loop() {
     case Running:
       // skip everything if we are still in standby
       if (digitalRead(buttonPin)) {
+        Serial.println("Button Pressed!");
+        delay(25);  // wait 1 second
         going = !going;
-        delay(1000);  // wait 1 second
-        desiredHeading = compass.heading();  // set the compass heading to follow
-        
-        // Callibrate Servo
-        lowerBound = servo.read() - 10;
-        upperBound = servo.read() + 10;
-        Serial.print("lowerBound: ");
-        Serial.print(lowerBound);
-        Serial.print("\tupperBound: ");
-        Serial.println(upperBound);
+        if (going) {
+          compass.read();
+          desiredHeading = compass.heading();  // set the compass heading to follow
+          
+          // Callibrate Servo
+          lowerBound = servo.read() - 25;
+          upperBound = servo.read() + 25;
+          Serial.print("lowerBound: ");
+          Serial.print(lowerBound);
+          Serial.print("\tupperBound: ");
+          Serial.println(upperBound);
+        }
       }
       if (!going) break;
-
+ 
       /* STEERING */
       compass.read();
       currentHeading = compass.heading();
-      newHeading = Kp * (currentHeading - desiredHeading);
-      servoDirection = map(newHeading, compass.m_min.y, compass.m_max.y, lowerBound, upperBound);  // TODO: CHANGE TO OTHER DIMENSION
+      newHeading = constrain(Kp * (currentHeading - desiredHeading), -360, 360);
+      servoDirection = map(newHeading, -360, 360, lowerBound, upperBound);  // TODO: CHANGE TO OTHER DIMENSION
       servo.write(servoDirection);
       Serial.println(servoDirection);
 
