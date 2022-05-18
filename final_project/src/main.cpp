@@ -22,6 +22,7 @@ int servoPin = 2; //define servo pin attached
 int servoDirection; // direction servo is pointing
 int currentHeading, desiredHeading, newHeading;
 int Kp = 3;
+int upperBound, lowerBound;  // upper and lower bound for steering
 
 // control variables
 int buttonPin = 4;
@@ -86,7 +87,6 @@ void loop() {
         compass.m_max = running_max;
         previous_time = millis();
         state = State::Running;
-        desiredHeading = compass.heading();
       }
       break;
     case PositionAssignment:   // Determines statrting point based on competition 
@@ -95,7 +95,16 @@ void loop() {
       // skip everything if we are still in standby
       if (digitalRead(buttonPin)) {
         going = !going;
-        delay(15);
+        delay(1000);  // wait 1 second
+        desiredHeading = compass.heading();  // set the compass heading to follow
+        
+        // Callibrate Servo
+        lowerBound = servo.read() - 10;
+        upperBound = servo.read() + 10;
+        Serial.print("lowerBound: ");
+        Serial.print(lowerBound);
+        Serial.print("\tupperBound: ");
+        Serial.println(upperBound);
       }
       if (!going) break;
 
@@ -103,7 +112,7 @@ void loop() {
       compass.read();
       currentHeading = compass.heading();
       newHeading = Kp * (currentHeading - desiredHeading);
-      servoDirection = map(newHeading, compass.m_min.y, compass.m_max.y, 180, 0);  // TODO: CHANGE TO OTHER DIMENSION
+      servoDirection = map(newHeading, compass.m_min.y, compass.m_max.y, lowerBound, upperBound);  // TODO: CHANGE TO OTHER DIMENSION
       servo.write(servoDirection);
       Serial.println(servoDirection);
 
