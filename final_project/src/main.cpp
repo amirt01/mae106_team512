@@ -25,6 +25,8 @@ int sensorValue;
 int error;
 bool going = false;
 
+// power variables
+int pistonPosition = 1;
 // steering variables
 int currentHeading, desiredHeading, newHeading;
 int Kp = 3;
@@ -43,6 +45,7 @@ unsigned long previous_time = 0;
 
 // Time Variables
 unsigned long lastmilli = 0; // time since solenoid opened
+unsigned long currentmiilli;
 const long interval = 1000; // interval to turn on and off solenoid
 
 void setup() {
@@ -91,15 +94,31 @@ void loop() {
         else break;
       } else break;
 
-      /* POWER */
-
-
       /* STEERING */
       compass.read();
       currentHeading = compass.heading();
       newHeading = Kp * (currentHeading - desiredHeading);
       servoDirection = map(newHeading, compass.m_min.x, compass.m_max.x, 0.0, 25.0);  // TODO: CHANGE TO OTHER DIMENSION
       analogWrite(servoPin, servoDirection);
+
+      /* POWER */
+
+      // TODO: change to use interupts instead
+      if (digitalRead(reedSwitch)) { // if the magnet is near the reedswitch
+      if (digitalRead(reedSwitch)) { // if the magnet is near the reedswitch
+        pistonPosition++;
+        if (pistonPosition > 4) pistonPosition = 1;
+      }
+
+      if (pistonPosition < 3)
+          solenoidState = HIGH;
+      else
+          solenoidState = LOW;
+      digitalWrite(solenoid, solenoidState);
+
+      /* REED SWITCH */
+
+      reedSwitch = digitalRead(switchPin);
 
       break;
     case Finish:
