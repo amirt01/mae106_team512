@@ -104,16 +104,18 @@ void loop() {
       if (!going) break;
  
       /* STEERING */
+      // this snipet solves the servo twitch on startup problem
+      if (!servo.attached())  // if we haven't attatched the servo yet
+        servo.attach(servoPin);  // attatch the servo
+
+      // get the updated compass value
       compass.read();
       currentHeading = compass.heading();
+
+      // calculate the updated heading TODO: there is a bug somewhere here...
       newHeading = constrain(Kp * (currentHeading - desiredHeading), -180, 180);
       servoDirection = map(newHeading, -180, 180, lowerBound, upperBound);  // TODO: CHANGE TO OTHER DIMENSION
-      
-      if (!servo.attached())
-        servo.attach(servoPin);
-
       servo.write(servoDirection);
-
       Serial.println(servoDirection);
 
       /* POWER */
