@@ -18,11 +18,11 @@ int solenoidState = LOW;
 bool reedSwitchState = 0;  // initially the piston is at the top
 
 // steering variables
-int servoPin = 5; //define servo pin attached
+int servoPin = 7; //define servo pin attached
 int servoDirection; // direction servo is pointing
 float currentHeading, desiredHeading, newHeading;
 int Kp = 1;
-int upperBound, lowerBound;  // upper and lower bound for steering
+int upperBound = 50, lowerBound = 0;  // upper and lower bound for steering
 
 // control variables
 int buttonPin = 4;
@@ -45,7 +45,6 @@ const long interval = 1000; // interval to turn on and off solenoid
 float revolutions = 0;
 
 void setup() {
-  servo.attach(servoPin);
   pinMode(solenoidPin, OUTPUT);
   pinMode(buttonPin, INPUT);
   pinMode(reedSwitchPin, INPUT_PULLUP);
@@ -100,14 +99,6 @@ void loop() {
         if (going) {
           compass.read();
           desiredHeading = compass.heading();  // set the compass heading to follow
-          
-          // Callibrate Servo
-          lowerBound = servo.read() - 25;
-          upperBound = servo.read() + 25;
-          Serial.print("lowerBound: ");
-          Serial.print(lowerBound);
-          Serial.print("\tupperBound: ");
-          Serial.println(upperBound);
         }
       }
       if (!going) break;
@@ -115,9 +106,14 @@ void loop() {
       /* STEERING */
       compass.read();
       currentHeading = compass.heading();
-      newHeading = constrain(Kp * (currentHeading - desiredHeading), -360, 360);
-      servoDirection = map(newHeading, -360, 360, lowerBound, upperBound);  // TODO: CHANGE TO OTHER DIMENSION
+      newHeading = constrain(Kp * (currentHeading - desiredHeading), -180, 180);
+      servoDirection = map(newHeading, -180, 180, lowerBound, upperBound);  // TODO: CHANGE TO OTHER DIMENSION
+      
+      if (!servo.attached())
+        servo.attach(servoPin);
+
       servo.write(servoDirection);
+
       Serial.println(servoDirection);
 
       /* POWER */
