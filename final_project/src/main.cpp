@@ -56,7 +56,7 @@ void setup() {
 
   previous_time = millis();
 
-  state = State::Callibration;  // CHANGE FOR FINAL
+  state = State::Running;  // CHANGE FOR FINAL
 }
 
 void loop() {
@@ -116,24 +116,20 @@ void loop() {
       newHeading = constrain(Kp * (currentHeading - desiredHeading), -180, 180);
       servoDirection = map(newHeading, -180, 180, lowerBound, upperBound);  // TODO: CHANGE TO OTHER DIMENSION
       servo.write(servoDirection);
-      Serial.println(servoDirection);
+      // Serial.println(servoDirection);
 
       /* POWER */
       // Serial.println(reedSwitchState);   // prints to the serial monitor for debugging
       // TODO: change to use interupts instead
       // Serial.println(digitalRead(reedSwitchPin)); 
-      reedSwitchState = digitalRead(reedSwitchPin);   // writes the reedswitch to the pin 
       
-      // reed switch is 1 when no magnet, 0 when magnet
-      if (!reedSwitchState) // if the magnet is near the reedswitch
-        if (reedSwitchState != digitalRead(reedSwitchPin)) {  // prevent double firing
-          digitalWrite(solenoidPin, !digitalRead(solenoidPin));  // switch the solenoid state
-          revolutions += 0.5;
-        }
-
       /* REED SWITCH */
 
-       reedSwitchState = digitalRead(reedSwitchPin);
+      // reed switch is 1 when no magnet, 0 when magnet
+      if (!digitalRead(reedSwitchPin)) // if the magnet is near the reedswitch
+        digitalWrite(solenoidPin, HIGH);
+      else
+        digitalWrite(solenoidPin, LOW);
 
       /* VERIFICATION 2 */
       // Serial.print("Distance traveled (mm): ");  // print distance traveled (mm)
