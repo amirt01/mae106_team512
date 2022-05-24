@@ -51,6 +51,8 @@ unsigned long stopTime = 0;
 unsigned long offset = 50;  // milliseconds
 
 void increment() {
+  if (state != State::Running) return;
+
   digitalWrite(solenoidPin, HIGH);  // switch the solenoid state
   stopTime = millis() + offset;
 
