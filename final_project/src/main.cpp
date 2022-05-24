@@ -12,13 +12,16 @@ char report[80];
 
 // power variables
 int solenoidPin = 2; //pin solenoid is attahced to
-int reedSwitchPin = 10;
+int reedSwitchPin = 3;
 bool pistonPosition = true;  // true is top, false is bottom
 int solenoidState = LOW;
 bool reedSwitchState = 0;  // initially the piston is at the top
 
+float rotations = -0.5;  // work around to solve the interupt hit issue
+float distance = 0;
+
 // steering variables
-int servoPin = 7; //define servo pin attached
+int servoPin = 6; //define servo pin attached
 int servoDirection; // direction servo is pointing
 float currentHeading, desiredHeading, newHeading;
 int Kp = 1;
@@ -44,6 +47,22 @@ unsigned long currentmiilli;
 const long interval = 1000; // interval to turn on and off solenoid
 float revolutions = 0;
 
+void increment() {
+  if (state != State::Running) return;
+
+  digitalWrite(solenoidPin, HIGH);  // switch the solenoid state
+  // delay(50);
+  // digitalWrite(solenoidPin, LOW);
+
+  rotations += 0.5;
+  distance = rotations / 2 * M_PI * 69;
+  
+   // Serial.print("Rotations: ");
+   // Serial.println(rotations);  // calculate the distance traveled
+   Serial.print("Distance Traveled (mm): ");
+   Serial.println(distance);
+}
+
 void setup() {
   pinMode(solenoidPin, OUTPUT);
   pinMode(buttonPin, INPUT);
@@ -57,6 +76,8 @@ void setup() {
   previous_time = millis();
 
   state = State::Running;  // CHANGE FOR FINAL
+
+  attachInterrupt(digitalPinToInterrupt(reedSwitchPin), increment, FALLING);
 }
 
 void loop() {
@@ -105,35 +126,29 @@ void loop() {
  
       /* STEERING */
       // this snipet solves the servo twitch on startup problem
-      if (!servo.attached())  // if we haven't attatched the servo yet
-        servo.attach(servoPin);  // attatch the servo
+      // if (!servo.attached())  // if we haven't attatched the servo yet
+      //   servo.attach(servoPin);  // attatch the servo
 
-      // get the updated compass value
-      compass.read();
-      currentHeading = compass.heading();
+      // // get the updated compass value
+      // compass.read();
+      // currentHeading = compass.heading();
 
-      // calculate the updated heading TODO: there is a bug somewhere here...
-      newHeading = constrain(Kp * (currentHeading - desiredHeading), -180, 180);
-      servoDirection = map(newHeading, -180, 180, lowerBound, upperBound);  // TODO: CHANGE TO OTHER DIMENSION
-      servo.write(servoDirection);
-      // Serial.println(servoDirection);
+      // // calculate the updated heading TODO: there is a bug somewhere here...
+      // newHeading = constrain(Kp * (currentHeading - desiredHeading), -180, 180);
+      // servoDirection = map(newHeading, -180, 180, lowerBound, upperBound);  // TODO: CHANGE TO OTHER DIMENSION
+      // servo.write(servoDirection);
 
       /* POWER */
+      // digitalWrite(solenoidPin, LOW);
       // Serial.println(reedSwitchState);   // prints to the serial monitor for debugging
       // TODO: change to use interupts instead
       // Serial.println(digitalRead(reedSwitchPin)); 
-      
-      /* REED SWITCH */
-
-      // reed switch is 1 when no magnet, 0 when magnet
-      if (!digitalRead(reedSwitchPin)) // if the magnet is near the reedswitch
-        digitalWrite(solenoidPin, HIGH);
-      else
-        digitalWrite(solenoidPin, LOW);
 
       /* VERIFICATION 2 */
       // Serial.print("Distance traveled (mm): ");  // print distance traveled (mm)
       // Serial.println(revolutions / 2 * 69 * M_PI);  // calculate the distance traveled
+      // Serial.print("rotations: ");
+      // Serial.println(rotations);
 
       break;
     case Finish:
