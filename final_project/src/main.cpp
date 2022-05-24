@@ -47,20 +47,20 @@ unsigned long currentmiilli;
 const long interval = 1000; // interval to turn on and off solenoid
 float revolutions = 0;
 
-void increment() {
-  if (state != State::Running) return;
+unsigned long stopTime = 0;
+unsigned long offset = 50;  // milliseconds
 
+void increment() {
   digitalWrite(solenoidPin, HIGH);  // switch the solenoid state
-  // delay(50);
-  // digitalWrite(solenoidPin, LOW);
+  stopTime = millis() + offset;
 
   rotations += 0.5;
   distance = rotations / 2 * M_PI * 69;
   
-   // Serial.print("Rotations: ");
-   // Serial.println(rotations);  // calculate the distance traveled
-   Serial.print("Distance Traveled (mm): ");
-   Serial.println(distance);
+  // Serial.print("Rotations: ");
+  // Serial.println(rotations);  // calculate the distance traveled
+  Serial.print("Distance Traveled (mm): ");
+  Serial.println(distance);
 }
 
 void setup() {
@@ -139,10 +139,8 @@ void loop() {
       // servo.write(servoDirection);
 
       /* POWER */
-      // digitalWrite(solenoidPin, LOW);
-      // Serial.println(reedSwitchState);   // prints to the serial monitor for debugging
-      // TODO: change to use interupts instead
-      // Serial.println(digitalRead(reedSwitchPin)); 
+      if (millis() > stopTime)
+        digitalWrite(solenoidPin, LOW); 
 
       /* VERIFICATION 2 */
       // Serial.print("Distance traveled (mm): ");  // print distance traveled (mm)
