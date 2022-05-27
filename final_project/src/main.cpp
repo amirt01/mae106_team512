@@ -13,7 +13,6 @@ char report[80];
 // power variables
 int solenoidPin = 2; //pin solenoid is attahced to
 int reedSwitchPin = 3;
-bool pistonPosition = true;  // true is top, false is bottom
 int solenoidState = LOW;
 bool reedSwitchState = 0;  // initially the piston is at the top
 
@@ -52,18 +51,15 @@ unsigned long stopTime = 0;
 unsigned long offset = 50;  // milliseconds
 
 void increment() {
+  // only fire the piston when we are in the running mode
   if (state != State::Running) return;
 
   digitalWrite(solenoidPin, HIGH);  // switch the solenoid state
   stopTime = millis() + offset;
 
-  rotations += 0.5;
+  rotations += 0.5;  // gear ration is 2:1
   distance = rotations / 2 * M_PI * 69;
-  
-  // Serial.print("Rotations: ");
-  // Serial.println(rotations);  // calculate the distance traveled
-  // Serial.print("Distance Traveled (mm): ");
-  // Serial.println(distance);
+  // TODO: calculate speed for error calculation
 }
 
 void setup() {
@@ -141,25 +137,20 @@ void loop() {
         Serial.println("Servo Attatched!");
       }
 
-      // // get the updated compass value
-      compass.read();
-      currentHeading = compass.heading();
+      // TODO: check if this is necessary/works
+      if (!digitalRead(solenoidPin)) {  // we only change heading when we aren't firing the piston
+        // get the updated compass value
+        compass.read();
+        currentHeading = compass.heading();
 
-      // calculate the smaller angle between desired heading and current heading
-      // i.e. should we turn left or right?
-      theta = desiredHeading - currentHeading;
-      beta = 360 - abs(theta);
-      deltaHeading = abs(theta) < beta ? theta : beta;
-      servoDirection = map(deltaHeading, -180, 180, lowerBound, upperBound);  // TODO: CHANGE TO OTHER DIMENSION
-      
-      Serial.print(desiredHeading);
-      Serial.print("\t");
-      Serial.print(currentHeading);
-      Serial.print("\t");
-      Serial.print(deltaHeading);
-      Serial.print("\t");
-      Serial.println(servoDirection);
-      servo.write(servoDirection);
+        // calculate the smaller angle between desired heading and current heading
+        // i.e. should we turn left or right?
+        theta = desiredHeading - currentHeading;
+        beta = 360 - abs(theta);
+        deltaHeading = abs(theta) < beta ? theta : beta;
+        servoDirection = constrain(map(Kp * deltaHeading, 180, -180, lowerBound, upperBound), lowerBound, upperBound);
+        servo.write(servoDirection);
+      }
 
       /* POWER */
       if (millis() > stopTime)
