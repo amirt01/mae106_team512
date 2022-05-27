@@ -21,10 +21,11 @@ float rotations = -0.5;  // work around to solve the interupt hit issue
 float distance = 0;
 
 // steering variables
-int servoPin = 6; //define servo pin attached
+int servoPin = 6; //define servo pin attached 
 int servoDirection; // direction servo is pointing
-float currentHeading, desiredHeading, newHeading;
-int Kp = 1;
+float currentHeading, desiredHeading, deltaHeading;
+float theta, beta;
+int Kp = 5;
 int upperBound = 50, lowerBound = 0;  // upper and lower bound for steering
 
 // control variables
@@ -61,11 +62,12 @@ void increment() {
   
   // Serial.print("Rotations: ");
   // Serial.println(rotations);  // calculate the distance traveled
-  Serial.print("Distance Traveled (mm): ");
-  Serial.println(distance);
+  // Serial.print("Distance Traveled (mm): ");
+  // Serial.println(distance);
 }
 
 void setup() {
+  pinMode(LED_BUILTIN, OUTPUT);
   pinMode(solenoidPin, OUTPUT);
   pinMode(buttonPin, INPUT);
   pinMode(reedSwitchPin, INPUT_PULLUP);
@@ -77,14 +79,16 @@ void setup() {
 
   previous_time = millis();
 
-  state = State::Running;  // CHANGE FOR FINAL
+  state = State::Callibration;  // CHANGE FOR FINAL
 
   attachInterrupt(digitalPinToInterrupt(reedSwitchPin), increment, FALLING);
 }
 
 void loop() {
   switch(state) {
-    case Callibration:
+    case Callibration:digitalWrite(LED_BUILTIN, HIGH);
+      delay(100);
+      digitalWrite(LED_BUILTIN, LOW);
       // Callibrate Compass
       compass.read();
       
@@ -125,30 +129,41 @@ void loop() {
         }
       }
       if (!going) break;
+      
+      digitalWrite(LED_BUILTIN, HIGH);
+      delay(15);
+      digitalWrite(LED_BUILTIN, LOW);
  
       /* STEERING */
       // this snipet solves the servo twitch on startup problem
-      // if (!servo.attached())  // if we haven't attatched the servo yet
-      //   servo.attach(servoPin);  // attatch the servo
+      if (!servo.attached()) { // if we haven't attatched the servo yet
+        servo.attach(servoPin);  // attatch the servo
+        Serial.println("Servo Attatched!");
+      }
 
       // // get the updated compass value
-      // compass.read();
-      // currentHeading = compass.heading();
+      compass.read();
+      currentHeading = compass.heading();
 
-      // // calculate the updated heading TODO: there is a bug somewhere here...
-      // newHeading = constrain(Kp * (currentHeading - desiredHeading), -180, 180);
-      // servoDirection = map(newHeading, -180, 180, lowerBound, upperBound);  // TODO: CHANGE TO OTHER DIMENSION
-      // servo.write(servoDirection);
+      // calculate the smaller angle between desired heading and current heading
+      // i.e. should we turn left or right?
+      theta = desiredHeading - currentHeading;
+      beta = 360 - abs(theta);
+      deltaHeading = abs(theta) < beta ? theta : beta;
+      servoDirection = map(deltaHeading, -180, 180, lowerBound, upperBound);  // TODO: CHANGE TO OTHER DIMENSION
+      
+      Serial.print(desiredHeading);
+      Serial.print("\t");
+      Serial.print(currentHeading);
+      Serial.print("\t");
+      Serial.print(deltaHeading);
+      Serial.print("\t");
+      Serial.println(servoDirection);
+      servo.write(servoDirection);
 
       /* POWER */
       if (millis() > stopTime)
-        digitalWrite(solenoidPin, LOW); 
-
-      /* VERIFICATION 2 */
-      // Serial.print("Distance traveled (mm): ");  // print distance traveled (mm)
-      // Serial.println(revolutions / 2 * 69 * M_PI);  // calculate the distance traveled
-      // Serial.print("rotations: ");
-      // Serial.println(rotations);
+        digitalWrite(solenoidPin, LOW);
 
       break;
     case Finish:
