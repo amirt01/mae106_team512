@@ -3,6 +3,11 @@
 #include <LSM303.h>
 #include <Wire.h>
 
+#define SOLENOID_PIN 2
+#define REED_SWITCH_PIN 3
+#define SERVO_PIN 6
+#define BUTTON_PIN 4
+
 LSM303 compass;
 LSM303::vector<int16_t> running_min = {32767, 32767, 32767}, running_max = {-32768, -32768, -32768};
 
@@ -11,8 +16,6 @@ Servo servo;
 char report[80];
 
 // power variables
-int solenoidPin = 2; //pin solenoid is attahced to
-int reedSwitchPin = 3;
 int solenoidState = LOW;
 bool reedSwitchState = 0;  // initially the piston is at the top
 
@@ -20,7 +23,6 @@ float rotations = -0.5;  // work around to solve the interupt hit issue
 float distance = 0;
 
 // steering variables
-int servoPin = 6; //define servo pin attached 
 int servoDirection; // direction servo is pointing
 float currentHeading, desiredHeading, deltaHeading;
 float theta, beta;
@@ -28,7 +30,6 @@ int Kp = 5;
 int upperBound = 50, lowerBound = 0;  // upper and lower bound for steering
 
 // control variables
-int buttonPin = 4;
 bool going = false;
 int buttonState = 0;
 
@@ -54,7 +55,7 @@ void increment() {
   // only fire the piston when we are in the running mode
   if (state != State::Running) return;
 
-  digitalWrite(solenoidPin, HIGH);  // switch the solenoid state
+  digitalWrite(SOLENOID_PIN, HIGH);  // switch the solenoid state
   stopTime = millis() + offset;
 
   rotations += 0.5;  // gear ration is 2:1
@@ -64,9 +65,9 @@ void increment() {
 
 void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
-  pinMode(solenoidPin, OUTPUT);
-  pinMode(buttonPin, INPUT);
-  pinMode(reedSwitchPin, INPUT_PULLUP);
+  pinMode(SOLENOID_PIN, OUTPUT);
+  pinMode(BUTTON_PIN, INPUT);
+  pinMode(REED_SWITCH_PIN, INPUT_PULLUP);
   Serial.begin(9600);
   Wire.begin();
   compass.init();
@@ -77,7 +78,7 @@ void setup() {
 
   state = State::Callibration;  // CHANGE FOR FINAL
 
-  attachInterrupt(digitalPinToInterrupt(reedSwitchPin), increment, FALLING);
+  attachInterrupt(digitalPinToInterrupt(REED_SWITCH_PIN), increment, FALLING);
 }
 
 void loop() {
@@ -115,7 +116,7 @@ void loop() {
       break;
     case Running:
       // skip everything if we are still in standby
-      if (digitalRead(buttonPin)) {
+      if (digitalRead(BUTTON_PIN)) {
         Serial.println("Button Pressed!");
         delay(25);  // wait 1 second
         going = !going;
@@ -133,12 +134,12 @@ void loop() {
       /* STEERING */
       // this snipet solves the servo twitch on startup problem
       if (!servo.attached()) { // if we haven't attatched the servo yet
-        servo.attach(servoPin);  // attatch the servo
+        servo.attach(SERVO_PIN);  // attatch the servo
         Serial.println("Servo Attatched!");
       }
 
       // TODO: check if this is necessary/works
-      if (!digitalRead(solenoidPin)) {  // we only change heading when we aren't firing the piston
+      if (!digitalRead(SOLENOID_PIN)) {  // we only change heading when we aren't firing the piston
         // get the updated compass value
         compass.read();
         currentHeading = compass.heading();
@@ -154,7 +155,7 @@ void loop() {
 
       /* POWER */
       if (millis() > stopTime)
-        digitalWrite(solenoidPin, LOW);
+        digitalWrite(SOLENOID_PIN, LOW);
 
       break;
     case Finish:
