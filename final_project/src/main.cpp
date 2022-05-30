@@ -3,10 +3,10 @@
 #include <LSM303.h>
 #include <Wire.h>
 
-#define SOLENOID_PIN 2
-#define REED_SWITCH_PIN 3
-#define SERVO_PIN 6
+#define SERVO_PIN 3
 #define BUTTON_PIN 4
+#define REED_SWITCH_PIN 5
+#define SOLENOID_PIN 6
 
 LSM303 compass;
 LSM303::vector<int16_t> running_min = {32767, 32767, 32767}, running_max = {-32768, -32768, -32768};
@@ -128,6 +128,7 @@ void loop() {
       }
       if (!going) break;
       
+      // blink led to indicate we are going
       digitalWrite(LED_BUILTIN, HIGH);
       delay(15);
       digitalWrite(LED_BUILTIN, LOW);
