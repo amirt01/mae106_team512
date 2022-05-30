@@ -26,6 +26,7 @@ float currentHeading, desiredHeading, deltaHeading;
 float theta, beta;
 int Kp = 5;
 int upperBound = 50, lowerBound = 0;  // upper and lower bound for steering
+float targetDistance = 1524;  // 5ft in mm
 
 // control variables
 int buttonPin = 4;
@@ -142,6 +143,11 @@ void loop() {
         // get the updated compass value
         compass.read();
         currentHeading = compass.heading();
+
+        if (distance > targetDistance) {
+          desiredHeading += 90;  // TODO: make left/right turn option
+          targetDistance = 7620;  // 25ft in mm (all the way down the channel)
+        }
 
         // calculate the smaller angle between desired heading and current heading
         // i.e. should we turn left or right?
