@@ -2,6 +2,7 @@
 #include <Servo.h>
 #include <LSM303.h>
 #include <Wire.h>
+#include <float.h>
 
 #define REED_SWITCH_PIN 2
 #define SOLENOID_PIN 3
@@ -28,9 +29,9 @@ float currentHeading, desiredHeading, deltaHeading;
 float theta, beta;
 int Kp = 5;
 const int center = 92;
-const int delta = 12;
+const int delta = 10;
 const int upperBound = center + delta, lowerBound = center - delta;  // upper and lower bound for steering
-float targetDistance = 2 * 150 * 10;  // 5ft in mm
+float targetDistance = 1.5 * 150 * 10;  // 5ft in mm
 
 // control variables
 bool going = false;
@@ -52,7 +53,10 @@ const long interval = 1000; // interval to turn on and off solenoid
 float revolutions = 0;
 
 unsigned long stopTime = 0;
-unsigned long offset = 115;  // milliseconds
+unsigned long fireTime = 25;  // milliseconds
+
+unsigned long startTime = 0;
+unsigned long runningTime = 60000;
 
 void increment() {
   // only fire the piston when we are in the running mode
@@ -60,7 +64,7 @@ void increment() {
   Serial.println("Firing!");
 
   digitalWrite(SOLENOID_PIN, HIGH);  // switch the solenoid state
-  stopTime = millis() + offset;
+  stopTime = millis() + fireTime;
 
   rotations += 0.5;  // gear ration is 2:1
   distance = rotations / 2 * M_PI * 69;
@@ -114,6 +118,7 @@ void loop() {
         compass.m_max = running_max;
         previous_time = millis();
         state = State::Running;
+        startTime = millis();
       }
       break;
     case PositionAssignment:   // Determines statrting point based on competition 
@@ -152,7 +157,7 @@ void loop() {
 
         if (distance > targetDistance) {
           desiredHeading -= 90;  // TODO: make left/right turn option
-          targetDistance = 7620;  // 25ft in mm (all the way down the channel)
+          targetDistance = FLT_MAX_EXP;  // 25ft in mm (all the way down the channel)
         }
 
         // calculate the smaller angle between desired heading and current heading
@@ -167,6 +172,11 @@ void loop() {
       /* POWER */
       if (millis() > stopTime)
         digitalWrite(SOLENOID_PIN, LOW);
+
+      if (millis() > startTime + runningTime) {
+        digitalWrite(SOLENOID_PIN, LOW);
+        state = State::Finish;
+      }
 
       break;
     case Finish:
