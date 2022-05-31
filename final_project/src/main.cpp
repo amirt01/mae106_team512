@@ -3,10 +3,10 @@
 #include <LSM303.h>
 #include <Wire.h>
 
-#define SERVO_PIN 3
+#define REED_SWITCH_PIN 2
+#define SOLENOID_PIN 3
 #define BUTTON_PIN 4
-#define REED_SWITCH_PIN 5
-#define SOLENOID_PIN 6
+#define SERVO_PIN 5
 
 LSM303 compass;
 LSM303::vector<int16_t> running_min = {32767, 32767, 32767}, running_max = {-32768, -32768, -32768};
@@ -23,12 +23,14 @@ float rotations = -0.5;  // work around to solve the interupt hit issue
 float distance = 0;
 
 // steering variables
-int servoDirection; // direction servo is pointing
+int servoDirection; // direction is pointing
 float currentHeading, desiredHeading, deltaHeading;
 float theta, beta;
 int Kp = 5;
-int upperBound = 50, lowerBound = 0;  // upper and lower bound for steering
-float targetDistance = 1524;  // 5ft in mm
+const int center = 92;
+const int delta = 12;
+const int upperBound = center + delta, lowerBound = center - delta;  // upper and lower bound for steering
+float targetDistance = 2 * 150 * 10;  // 5ft in mm
 
 // control variables
 bool going = false;
@@ -50,11 +52,12 @@ const long interval = 1000; // interval to turn on and off solenoid
 float revolutions = 0;
 
 unsigned long stopTime = 0;
-unsigned long offset = 50;  // milliseconds
+unsigned long offset = 115;  // milliseconds
 
 void increment() {
   // only fire the piston when we are in the running mode
   if (state != State::Running) return;
+  Serial.println("Firing!");
 
   digitalWrite(SOLENOID_PIN, HIGH);  // switch the solenoid state
   stopTime = millis() + offset;
@@ -142,12 +145,13 @@ void loop() {
 
       // TODO: check if this is necessary/works
       if (!digitalRead(SOLENOID_PIN)) {  // we only change heading when we aren't firing the piston
+        Serial.println("Steering!");
         // get the updated compass value
         compass.read();
         currentHeading = compass.heading();
 
         if (distance > targetDistance) {
-          desiredHeading += 90;  // TODO: make left/right turn option
+          desiredHeading -= 90;  // TODO: make left/right turn option
           targetDistance = 7620;  // 25ft in mm (all the way down the channel)
         }
 
@@ -156,7 +160,7 @@ void loop() {
         theta = desiredHeading - currentHeading;
         beta = 360 - abs(theta);
         deltaHeading = abs(theta) < beta ? theta : beta;
-        servoDirection = constrain(map(Kp * deltaHeading, 180, -180, lowerBound, upperBound), lowerBound, upperBound);
+        servoDirection = constrain(map(Kp * deltaHeading, -180, 180, lowerBound, upperBound), lowerBound, upperBound);
         servo.write(servoDirection);
       }
 
