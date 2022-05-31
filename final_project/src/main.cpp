@@ -57,6 +57,7 @@ unsigned long fireTime = 25;  // milliseconds
 
 unsigned long startTime = 0;
 unsigned long runningTime = 60000;
+unsigned long launchDelay = 10000;
 
 void increment() {
   // only fire the piston when we are in the running mode
@@ -133,6 +134,8 @@ void loop() {
           compass.read();
           desiredHeading = compass.heading();  // set the compass heading to follow
         }
+        delay(launchDelay);  // wait 10 seocnds before
+        increment();
       }
       if (!going) break;
       
