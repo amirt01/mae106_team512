@@ -9,62 +9,60 @@
 #define BUTTON_PIN 4
 #define SERVO_PIN 5
 
-LSM303 compass;
-LSM303::vector<int16_t> running_min = {32767, 32767, 32767}, running_max = {-32768, -32768, -32768};
-
+// Initialize Library Objects
 Servo servo;
+LSM303 compass;
 
-char report[80];
+// Initialize Compass Calibration Values
+LSM303::vector<int16_t> running_min = {32767, 32767, 32767};
+LSM303::vector<int16_t> running_max = {-32768, -32768, -32768};
+unsigned long calibrationStartTime;
+const unsigned short callibrationDurration = 10000;
 
-// power variables
-int solenoidState = LOW;
+// Power Variables
 bool reedSwitchState = 0;  // initially the piston is at the top
 
-float rotations = -0.5;  // work around to solve the interupt hit issue
-float distance = 0;
-
-// steering variables
-int servoDirection; // direction is pointing
+// Steering Variables
+int servoDirection, constrainedServoDirection;
 float currentHeading, desiredHeading, deltaHeading;
 float theta, beta;
-int Kp = 5;
-const int center = 92;
-const int delta = 10;
-const int upperBound = center + delta, lowerBound = center - delta;  // upper and lower bound for steering
+const unsigned short Kp = 5;
+const unsigned short STEERING_CENTER = 92;
+const unsigned short STEERING_DELTA = 10;
+const unsigned short STEERING_UPPER_BOUND = STEERING_CENTER + STEERING_DELTA;
+const unsigned short STEERING_LOWER_BOUND = STEERING_CENTER - STEERING_DELTA;  // upper and lower bound for steering
 float targetDistance = 1.5 * 150 * 10;  // 5ft in mm
 
-// control variables
+// Power Timing
+unsigned long stopTime = 0;
+unsigned long fireTime = 25;
+
+// Competition Timing
+unsigned long runningStartTime = 0;
+unsigned long runningDurration = 60000;
+unsigned long launchDelay = 15000;
+unsigned long blinkTime = 0;
+unsigned short blinkDelay = 15;
+
+// Controls
+float rotations = -0.5;  // work around to solve the interupt hit issue
+float distance = 0;
 bool going = false;
-int buttonState = 0;
 
 enum State{
   Callibration,
   PositionAssignment,
   Running,
   Finish,
-} state;
+} controlState;
 
-unsigned long previous_time = 0;
-
-// Time Variables
-unsigned long lastmilli = 0; // time since solenoid opened
-unsigned long currentmiilli;
-const long interval = 1000; // interval to turn on and off solenoid
-float revolutions = 0;
-
-unsigned long stopTime = 0;
-unsigned long fireTime = 25;  // milliseconds
-
-unsigned long startTime = 0;
-unsigned long runningTime = 60000;
-unsigned long launchDelay = 10000;
-
+// This function will be called every time the reed switch is triggered
 void increment() {
-  // only fire the piston when we are in the running mode
-  if (state != State::Running) return;
+  if (controlState != State::Running) return;  // only fire the piston when we are in the running mode
+
   Serial.println("Firing!");
 
-  digitalWrite(SOLENOID_PIN, HIGH);  // switch the solenoid state
+  digitalWrite(SOLENOID_PIN, HIGH);
   stopTime = millis() + fireTime;
 
   rotations += 0.5;  // gear ration is 2:1
@@ -77,73 +75,67 @@ void setup() {
   pinMode(SOLENOID_PIN, OUTPUT);
   pinMode(BUTTON_PIN, INPUT);
   pinMode(REED_SWITCH_PIN, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(REED_SWITCH_PIN), increment, FALLING);
+
   Serial.begin(9600);
+
   Wire.begin();
   compass.init();
   compass.enableDefault();
   compass.writeReg(0x24, 0x74);
 
-  previous_time = millis();
-
-  state = State::Callibration;  // CHANGE FOR FINAL
-
-  attachInterrupt(digitalPinToInterrupt(REED_SWITCH_PIN), increment, FALLING);
+  controlState = State::Callibration;
+  calibrationStartTime = millis();
 }
 
 void loop() {
-  switch(state) {
-    case Callibration:digitalWrite(LED_BUILTIN, HIGH);
-      delay(100);
-      digitalWrite(LED_BUILTIN, LOW);
+  switch(controlState) {
+    case Callibration:
+      blinkDelay = 1000;
+
       // Callibrate Compass
       compass.read();
-      
-      // Update min values
       running_min.x = min(running_min.x, compass.m.x);
       running_min.y = min(running_min.y, compass.m.y);
       running_min.z = min(running_min.z, compass.m.z);
-
-      // Update max values
       running_max.x = max(running_max.x, compass.m.x);
       running_max.y = max(running_max.y, compass.m.y);
       running_max.z = max(running_max.z, compass.m.z);
 
-      sprintf(report, "min: {%+6d, %+6d, %+6d}    max: {%+6d, %+6d, %+6d}",
-        running_min.x, running_min.y, running_min.z,
-        running_max.x, running_max.y, running_max.z);
-      Serial.println(report);
-
-      // Continue callibration for 10 seconds and then assign compass min and max
-      if (millis() > previous_time + 10000) {
+      // Callibrate for 10 seconds, then assign compass min and max
+      if (millis() > calibrationStartTime + callibrationDurration) {
         compass.m_min = running_min;
         compass.m_max = running_max;
-        previous_time = millis();
-        state = State::Running;
-        startTime = millis();
+        calibrationStartTime = millis();
+
+        controlState = State::Running;
+        blinkDelay = 100;
       }
       break;
-    case PositionAssignment:   // Determines statrting point based on competition 
-      break;
-    case Running:
-      // skip everything if we are still in standby
-      if (digitalRead(BUTTON_PIN)) {
-        Serial.println("Button Pressed!");
-        delay(25);  // wait 1 second
-        going = !going;
-        if (going) {
-          compass.read();
-          desiredHeading = compass.heading();  // set the compass heading to follow
-        }
-        delay(launchDelay);  // wait 10 seocnds before
-        increment();
-      }
-      if (!going) break;
       
-      // blink led to indicate we are going
-      digitalWrite(LED_BUILTIN, HIGH);
-      delay(15);
-      digitalWrite(LED_BUILTIN, LOW);
- 
+    case PositionAssignment:
+      // TODO: Determines statrting point based on competition 
+      break;
+    
+    case Running:
+      if (digitalRead(BUTTON_PIN)) {
+        Serial.println("Starting to Go!");
+        delay(100);  // debounce the button
+
+        going = true;
+        blinkDelay = 15;
+
+        // update the compass heading
+        compass.read();
+        desiredHeading = compass.heading();
+       
+        digitalWrite(LED_BUILTIN, HIGH);
+        delay(launchDelay);  // wait 15 seocnds before launching
+
+        runningStartTime = millis();       
+        increment();
+      } else if (!going) break;  // skip everything if we are still in standby
+      
       /* STEERING */
       // this snipet solves the servo twitch on startup problem
       if (!servo.attached()) { // if we haven't attatched the servo yet
@@ -151,10 +143,11 @@ void loop() {
         Serial.println("Servo Attatched!");
       }
 
-      // TODO: check if this is necessary/works
-      if (!digitalRead(SOLENOID_PIN)) {  // we only change heading when we aren't firing the piston
+      // Instead of implementing a low pass filter, we only change heading when we aren't firing the piston.
+      // This is not only more accurate, but also less resource intensive
+      if (!digitalRead(SOLENOID_PIN)) {
         Serial.println("Steering!");
-        // get the updated compass value
+        
         compass.read();
         currentHeading = compass.heading();
 
@@ -163,12 +156,13 @@ void loop() {
           targetDistance = FLT_MAX_EXP;  // 25ft in mm (all the way down the channel)
         }
 
-        // calculate the smaller angle between desired heading and current heading
+        // Calculate the smaller angle between desired heading and current heading
         // i.e. should we turn left or right?
         theta = desiredHeading - currentHeading;
         beta = 360 - abs(theta);
-        deltaHeading = abs(theta) < beta ? theta : beta;
-        servoDirection = constrain(map(Kp * deltaHeading, -180, 180, lowerBound, upperBound), lowerBound, upperBound);
+        deltaHeading = abs(theta) < beta ? theta : beta;  // pick the smaller angle difference
+        servoDirection = map(Kp * deltaHeading, -180, 180, STEERING_LOWER_BOUND, STEERING_UPPER_BOUND);
+        constrainedServoDirection = constrain(servoDirection, STEERING_LOWER_BOUND, STEERING_UPPER_BOUND);
         servo.write(servoDirection);
       }
 
@@ -176,15 +170,22 @@ void loop() {
       if (millis() > stopTime)
         digitalWrite(SOLENOID_PIN, LOW);
 
-      if (millis() > startTime + runningTime) {
-        digitalWrite(SOLENOID_PIN, LOW);
-        state = State::Finish;
+      // Hard stop after 1 minute
+      if (millis() > runningStartTime + runningDurration) {
+        digitalWrite(SOLENOID_PIN, HIGH);
+        controlState = State::Finish;
+        blinkDelay = 100;
       }
-
       break;
+
     case Finish:
-      // Finish run
       break;
   }
-  delay(100);
+
+  // This snippet allows us to indicate what mode we are in with the built in LED without
+  // adding any delay.
+  if (millis() > blinkTime) {
+    digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
+    blinkTime = millis() + blinkDelay;
+  }
 }
