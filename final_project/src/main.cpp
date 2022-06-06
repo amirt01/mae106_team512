@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <Servo.h>
 #include <LSM303.h>
+#include <SPI.h>
 #include <Wire.h>
 #include <float.h>
 
@@ -23,19 +24,19 @@ const unsigned short callibrationDurration = 10000;
 bool reedSwitchState = 0;  // initially the piston is at the top
 
 // Steering Variables
-int servoDirection, constrainedServoDirection;
 float currentHeading, desiredHeading, deltaHeading;
 float theta, beta;
-const unsigned short Kp = 5;
-const unsigned short STEERING_CENTER = 92;
+short Kp = 5;
+const unsigned short STEERING_CENTER = 90;
 const unsigned short STEERING_DELTA = 10;
 const unsigned short STEERING_UPPER_BOUND = STEERING_CENTER + STEERING_DELTA;
 const unsigned short STEERING_LOWER_BOUND = STEERING_CENTER - STEERING_DELTA;  // upper and lower bound for steering
+unsigned short servoDirection, constrainedServoDirection;
 float targetDistance = 1.5 * 150 * 10;  // 5ft in mm
 
 // Power Timing
 unsigned long stopTime = 0;
-unsigned long fireTime = 25;
+unsigned long fireTime = 50;
 
 // Competition Timing
 unsigned long runningStartTime = 0;
@@ -49,7 +50,7 @@ float rotations = -0.5;  // work around to solve the interupt hit issue
 float distance = 0;
 bool going = false;
 
-enum State{
+enum State {
   Callibration,
   PositionAssignment,
   Running,
@@ -58,7 +59,8 @@ enum State{
 
 // This function will be called every time the reed switch is triggered
 void increment() {
-  if (controlState != State::Running) return;  // only fire the piston when we are in the running mode
+  // only fire the piston when we are in the running mode and going and not firing already
+  if (controlState != State::Running || !going || digitalRead(SOLENOID_PIN)) return;
 
   Serial.println("Firing!");
 
@@ -91,10 +93,13 @@ void setup() {
 void loop() {
   switch(controlState) {
     case Callibration:
+      Serial.println("Callibrating!");
       blinkDelay = 1000;
 
       // Callibrate Compass
+      Serial.println("Reading Compass");
       compass.read();
+      Serial.println("Saving Values");
       running_min.x = min(running_min.x, compass.m.x);
       running_min.y = min(running_min.y, compass.m.y);
       running_min.z = min(running_min.z, compass.m.z);
@@ -104,6 +109,7 @@ void loop() {
 
       // Callibrate for 10 seconds, then assign compass min and max
       if (millis() > calibrationStartTime + callibrationDurration) {
+        Serial.println("Storing Values");
         compass.m_min = running_min;
         compass.m_max = running_max;
         calibrationStartTime = millis();
@@ -112,29 +118,32 @@ void loop() {
         blinkDelay = 100;
       }
       break;
-      
+
     case PositionAssignment:
       // TODO: Determines statrting point based on competition 
       break;
     
     case Running:
+      Serial.println("Waiting for button...");
+
       if (digitalRead(BUTTON_PIN)) {
         Serial.println("Starting to Go!");
         delay(100);  // debounce the button
 
-        going = true;
-        blinkDelay = 15;
-
         // update the compass heading
         compass.read();
         desiredHeading = compass.heading();
-       
+
         digitalWrite(LED_BUILTIN, HIGH);
         delay(launchDelay);  // wait 15 seocnds before launching
+        blinkDelay = 15;
 
         runningStartTime = millis();       
+        going = true;
         increment();
-      } else if (!going) break;  // skip everything if we are still in standby
+      } else if (!going) break;  // skip everything if we are still in standbye
+      
+      Serial.println("Running!");
       
       /* STEERING */
       // this snipet solves the servo twitch on startup problem
@@ -146,8 +155,6 @@ void loop() {
       // Instead of implementing a low pass filter, we only change heading when we aren't firing the piston.
       // This is not only more accurate, but also less resource intensive
       if (!digitalRead(SOLENOID_PIN)) {
-        Serial.println("Steering!");
-        
         compass.read();
         currentHeading = compass.heading();
 
@@ -179,6 +186,7 @@ void loop() {
       break;
 
     case Finish:
+      Serial.println("Finished!");
       break;
   }
 
